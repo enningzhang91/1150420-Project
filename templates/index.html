@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flask + C 踩地雷</title>
+    <style>
+        :root {
+            --bg: #0b1220;
+            --card: #111b2e;
+            --card-soft: #17233b;
+            --text: #e7eefb;
+            --muted: #8ea1c6;
+            --accent: #4f8cff;
+            --danger: #ff5d73;
+            --warn: #ffca57;
+            --success: #43d9a3;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: radial-gradient(circle at top, #152745, var(--bg) 60%);
+            color: var(--text);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .app {
+            width: min(980px, 100%);
+            background: rgba(17, 27, 46, 0.88);
+            border: 1px solid #2b3e65;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            margin: 0 0 16px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--card-soft);
+            border-radius: 12px;
+        }
+
+        label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        input {
+            width: 76px;
+            padding: 7px 8px;
+            background: #0e1729;
+            border: 1px solid #38507f;
+            border-radius: 8px;
+            color: var(--text);
+        }
+
+        button {
+            border: none;
+            background: #2f5fbd;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.08s ease, filter 0.2s ease;
+        }
+
+        button:hover { filter: brightness(1.08); }
+        button:active { transform: translateY(1px); }
+
+        #undoBtn { background: #6e4dcc; }
+
+        .status-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        #status {
+            min-height: 24px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #12223f;
+            border: 1px solid #294677;
+            font-weight: 600;
+        }
+
+        #status.win { border-color: #1e7c63; color: var(--success); }
+        #status.lose { border-color: #853449; color: #ff8ca2; }
+
+        .layout {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 1fr 300px;
+        }
+
+        #board {
+            display: grid;
+            gap: 4px;
+            background: #0d182e;
+            border: 1px solid #2a4270;
+            border-radius: 12px;
+            width: fit-content;
+            padding: 8px;
+        }
+
+        .cell {
+            width: 34px;
+            height: 34px;
+            border: 1px solid #3f5888;
+            border-radius: 6px;
+            background: linear-gradient(#2a436f, #21365a);
+            color: #dce7ff;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .cell.open {
+            background: linear-gradient(#dfe7f5, #c7d3ea);
+            color: #17233b;
+            border-color: #a4b5d2;
+        }
+
+        .cell.mine { background: linear-gradient(#ff8293, #ff5d73); color: white; border-color: #ff5d73; }
+        .cell.flag { background: linear-gradient(#ffe08e, #ffc94f); color: #473400; border-color: #f5ba39; }
+
+        .side {
+            background: var(--card-soft);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .side h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        #history {
+            font-size: 13px;
+            color: #c6d7f8;
+            line-height: 1.5;
+            max-height: 420px;
+            overflow: auto;
+            word-break: break-word;
+            border: 1px dashed #4968a3;
+            border-radius: 8px;
+            padding: 8px;
+            background: #13213b;
+        }
+
+        @media (max-width: 860px) {
+            .layout { grid-template-columns: 1fr; }
+            .cell { width: 30px; height: 30px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+    <h1>踩地雷</h1>
+    <p class="subtitle">Flask 前端 + C 後端資料結構版（Linked List / Stack / Queue）</p>
+
+    <div class="panel">
+        <label>列數 <input id="rows" type="number" value="9" min="5" max="30" /></label>
+        <label>行數 <input id="cols" type="number" value="9" min="5" max="30" /></label>
+        <label>地雷 <input id="mines" type="number" value="10" min="1" max="899" /></label>
+        <label>種子 <input id="seed" type="number" value="0" min="0" /></label>
+        <button id="newGameBtn">新遊戲</button>
+        <button id="undoBtn">Undo</button>
+    </div>
+
+    <div class="status-wrap">
+        <div id="status">按「新遊戲」開始</div>
+    </div>
+
+    <div class="layout">
+        <div id="board"></div>
+        <div class="side">
+            <h3>操作歷史（Linked List）</h3>
+            <div id="history">目前沒有操作</div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById("board");
+        const statusEl = document.getElementById("status");
+        const historyEl = document.getElementById("history");
+        let game = null;
+
+        async function api(path, body) {
+            const response = await fetch(path, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body || {})
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || "Request failed");
+            }
+            return response.json();
+        }
+
+        function render() {
+            if (!game) {
+                boardEl.innerHTML = "";
+                return;
+            }
+            boardEl.style.gridTemplateColumns = `repeat(${game.cols}, 32px)`;
+            boardEl.innerHTML = "";
+            game.board.forEach((row, r) => {
+                row.forEach((value, c) => {
+                    const btn = document.createElement("button");
+                    btn.className = "cell";
+                    btn.textContent = value === "0" ? "" : value;
+                    if (value !== "#") btn.classList.add("open");
+                    if (value === "*") btn.classList.add("mine");
+                    if (value === "F") btn.classList.add("flag");
+                    btn.addEventListener("click", async () => {
+                        if (game.game_over) return;
+                        game = await api("/api/open", { row: r, col: c });
+                        updateStatus();
+                        render();
+                    });
+                    btn.addEventListener("contextmenu", async (e) => {
+                        e.preventDefault();
+                        if (game.game_over) return;
+                        game = await api("/api/flag", { row: r, col: c });
+                        updateStatus();
+                        render();
+                    });
+                    boardEl.appendChild(btn);
+                });
+            });
+            historyEl.textContent = (game.history && game.history.length)
+                ? game.history.join(" -> ")
+                : "目前沒有操作";
+        }
+
+        function updateStatus() {
+            statusEl.classList.remove("win", "lose");
+            if (!game) {
+                statusEl.textContent = "按「新遊戲」開始";
+                return;
+            }
+            if (game.game_over && game.win) {
+                statusEl.textContent = "恭喜，你贏了！";
+                statusEl.classList.add("win");
+            } else if (game.game_over) {
+                statusEl.textContent = "踩到地雷，遊戲結束。";
+                statusEl.classList.add("lose");
+            } else {
+                statusEl.textContent = game.can_undo
+                    ? "左鍵開格、右鍵插旗（可 Undo）"
+                    : "左鍵開格、右鍵插旗";
+            }
+        }
+
+        document.getElementById("newGameBtn").addEventListener("click", async () => {
+            const rows = Number(document.getElementById("rows").value);
+            const cols = Number(document.getElementById("cols").value);
+            const mines = Number(document.getElementById("mines").value);
+            const seed = Number(document.getElementById("seed").value);
+            game = await api("/api/new", { rows, cols, mines, seed });
+            updateStatus();
+            render();
+        });
+
+        document.getElementById("undoBtn").addEventListener("click", async () => {
+            if (!game) return;
+            game = await api("/api/undo", {});
+            updateStatus();
+            render();
+        });
+    </script>
+</body>
+</html>
